@@ -53,15 +53,29 @@ struct DnsQuestion {
 
 impl DnsQuestion {
     fn to_bytes(&self) -> Vec<u8> {
-        let mut out = Vec::new();
-        for label in self.name.split('.') {
-            out.push(label.len() as u8);            // <length>
-            out.extend_from_slice(label.as_bytes());// <content>
-        }
-
-        out.push(0); // null terminator
+        let mut out = encode_name(&self.name);
         out.extend_from_slice(&self.qtype.to_be_bytes());
         out.extend_from_slice(&self.qclass.to_be_bytes());
+        out
+    }
+}
+
+struct DnsRecord {
+    name: String,
+    rtype: u16,
+    class: u16,
+    ttl: u32,
+    data: Vec<u8>,   // RDATA; 4 bytes for an A record
+}
+
+impl DnsRecord {
+    fn to_bytes(&self) -> Vec<u8> {
+        let mut out = encode_name(&self.name);
+        out.extend_from_slice(&self.rtype.to_be_bytes());
+        out.extend_from_slice(&self.class.to_be_bytes());
+        out.extend_from_slice(&self.ttl.to_be_bytes());
+        out.extend_from_slice(&(self.data.len() as u16).to_be_bytes());
+        out.extend_from_slice(&self.data);
         out
     }
 }
@@ -69,6 +83,7 @@ impl DnsQuestion {
 struct DnsMessage {
     header: DnsHeader,
     questions: Vec<DnsQuestion>,
+    answers: Vec<DnsRecord>,
 }
 
 impl DnsMessage {
@@ -78,6 +93,10 @@ impl DnsMessage {
 
         for q in &self.questions {
             out.extend_from_slice(&q.to_bytes());
+        }
+
+        for a in &self.answers {
+            out.extend_from_slice(&a.to_bytes());
         }
 
         out
@@ -97,12 +116,20 @@ fn main() {
                         id: 1234,
                         qr: true,
                         qdcount: 1,
+                        ancount: 1,
                         ..Default::default()
                     },
                     questions: vec![DnsQuestion {
                         name: "codecrafters.io".to_string(),
                         qtype: 1,
                         qclass: 1,
+                    }],
+                    answers: vec![DnsRecord {
+                        name: "codecrafters.io".to_string(),
+                        rtype: 1,
+                        class: 1,
+                        ttl: 60,
+                        data: vec![192, 168, 1, 1],
                     }],
                 };
 
@@ -116,4 +143,14 @@ fn main() {
             }
         }
     }
+}
+
+fn encode_name(name: &str) -> Vec<u8> {
+    let mut out = Vec::new();
+    for label in name.split('.') {
+        out.push(label.len() as u8);            // <length>
+        out.extend_from_slice(label.as_bytes());// <content>
+    }
+    out.push(0);
+    out
 }
