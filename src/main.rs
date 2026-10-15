@@ -100,7 +100,7 @@ fn main() {
                         ..Default::default()
                     },
                     questions: vec![DnsQuestion {
-                        name: "google.com".to_string(),
+                        name: "codecrafters.io".to_string(),
                         qtype: 1,
                         qclass: 1,
                     }],
