@@ -45,14 +45,41 @@ impl DnsHeader {
     }
 }
 
+struct DnsQuestion {
+    name: String,   // "google.com"
+    qtype: u16,     // 1 = A https://www.rfc-editor.org/info/rfc1035/#section-3.2.2
+    qclass: u16,    // 1 = IN https://www.rfc-editor.org/info/rfc1035/#section-3.2.4
+}
+
+impl DnsQuestion {
+    fn to_bytes(&self) -> Vec<u8> {
+        let mut out = Vec::new();
+        for label in self.name.split('.') {
+            out.push(label.len() as u8);            // <length>
+            out.extend_from_slice(label.as_bytes());// <content>
+        }
+
+        out.push(0); // null terminator
+        out.extend_from_slice(&self.qtype.to_be_bytes());
+        out.extend_from_slice(&self.qclass.to_be_bytes());
+        out
+    }
+}
+
 struct DnsMessage {
     header: DnsHeader,
+    questions: Vec<DnsQuestion>,
 }
 
 impl DnsMessage {
     fn to_bytes(&self) -> Vec<u8> {
         let mut out = Vec::new();
         out.extend_from_slice(&self.header.to_bytes());
+
+        for q in &self.questions {
+            out.extend_from_slice(&q.to_bytes());
+        }
+
         out
     }
 }
@@ -69,8 +96,14 @@ fn main() {
                     header: DnsHeader {
                         id: 1234,
                         qr: true,
+                        qdcount: 1,
                         ..Default::default()
                     },
+                    questions: vec![DnsQuestion {
+                        name: "google.com".to_string(),
+                        qtype: 1,
+                        qclass: 1,
+                    }],
                 };
 
                 udp_socket
