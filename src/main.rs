@@ -43,6 +43,24 @@ impl DnsHeader {
 
         buf
     }
+
+    fn from_bytes(buf: &[u8]) -> DnsHeader {
+        DnsHeader {
+            id: u16::from_be_bytes([buf[0], buf[1]]),
+            qr: buf[2] & 0b1000_0000 != 0,
+            opcode: (buf[2] >> 3) & 0x0F,
+            aa: buf[2] & 0b0000_0100 != 0,
+            tc: buf[2] & 0b0000_0010 != 0,
+            rd: buf[2] & 0b0000_0001 != 0,
+            ra: buf[3] & 0b1000_0000 != 0,
+            z: (buf[3] >> 4) & 0x07,
+            rcode: buf[3] & 0x0F,
+            qdcount: u16::from_be_bytes([buf[4], buf[5]]),
+            ancount: u16::from_be_bytes([buf[6], buf[7]]),
+            nscount: u16::from_be_bytes([buf[8], buf[9]]),
+            arcount: u16::from_be_bytes([buf[10], buf[11]]),
+        }
+    }
 }
 
 struct DnsQuestion {
@@ -111,6 +129,12 @@ fn main() {
         match udp_socket.recv_from(&mut buf) {
             Ok((size, source)) => {
                 println!("Received {} bytes from {}", size, source);
+
+                if size < 12 {
+                    continue; // Too short to be an DNS header
+                }
+                let req = DnsHeader::from_bytes(&buf[..size]);
+
                 let msg = DnsMessage {
                     header: DnsHeader {
                         id: 1234,
