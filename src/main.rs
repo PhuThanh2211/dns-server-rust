@@ -137,8 +137,11 @@ fn main() {
 
                 let msg = DnsMessage {
                     header: DnsHeader {
-                        id: 1234,
+                        id: req.id,
                         qr: true,
+                        opcode: req.opcode,
+                        rd: req.rd,
+                        rcode: if req.opcode == 0 { 0 } else { 4 },
                         qdcount: 1,
                         ancount: 1,
                         ..Default::default()
@@ -153,7 +156,7 @@ fn main() {
                         rtype: 1,
                         class: 1,
                         ttl: 60,
-                        data: vec![192, 168, 1, 1],
+                        data: vec![8, 8, 8, 8],
                     }],
                 };
 
