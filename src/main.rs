@@ -44,6 +44,7 @@ impl DnsHeader {
         buf
     }
 
+    // Turn the 12 received bytes into a struct.
     fn from_bytes(buf: &[u8]) -> DnsHeader {
         DnsHeader {
             id: u16::from_be_bytes([buf[0], buf[1]]),
@@ -75,6 +76,13 @@ impl DnsQuestion {
         out.extend_from_slice(&self.qtype.to_be_bytes());
         out.extend_from_slice(&self.qclass.to_be_bytes());
         out
+    }
+
+    fn from_bytes(buf: &[u8], pos: usize) -> Option<(DnsQuestion, usize)> {
+        let (name, pos) = parse_name(buf, pos)?;
+        let qtype = u16::from_be_bytes([*buf.get(pos)?, *buf.get(pos + 1)?]);
+        let qclass = u16::from_be_bytes([*buf.get(pos + 2)?, *buf.get(pos + 3)?]);
+        Some((DnsQuestion { name, qtype, qclass }, pos + 4))
     }
 }
 
@@ -134,6 +142,28 @@ fn main() {
                     continue; // Too short to be an DNS header
                 }
                 let req = DnsHeader::from_bytes(&buf[..size]);
+                let mut questions = Vec::new();
+                let mut pos = 12;
+
+                for _ in 0..req.qdcount {
+                    match DnsQuestion::from_bytes(&buf[..size], pos) {
+                        Some((q, next)) => {
+                            questions.push(q);
+                            pos = next;
+                        }
+                        None => break,
+                    }
+                }
+
+                let answers: Vec<DnsRecord> = questions.iter()
+                    .map(|q| DnsRecord {
+                        name: q.name.clone(),
+                        rtype: 1,
+                        class: 1,
+                        ttl: 60,
+                        data: vec![8, 8, 8, 8],
+                    })
+                    .collect();
 
                 let msg = DnsMessage {
                     header: DnsHeader {
@@ -146,18 +176,8 @@ fn main() {
                         ancount: 1,
                         ..Default::default()
                     },
-                    questions: vec![DnsQuestion {
-                        name: "codecrafters.io".to_string(),
-                        qtype: 1,
-                        qclass: 1,
-                    }],
-                    answers: vec![DnsRecord {
-                        name: "codecrafters.io".to_string(),
-                        rtype: 1,
-                        class: 1,
-                        ttl: 60,
-                        data: vec![8, 8, 8, 8],
-                    }],
+                    questions,
+                    answers,
                 };
 
                 udp_socket
@@ -180,4 +200,21 @@ fn encode_name(name: &str) -> Vec<u8> {
     }
     out.push(0);
     out
+}
+
+fn parse_name(buf: &[u8], mut pos: usize) -> Option<(String, usize)> {
+    let mut labels: Vec<String> = Vec::new();
+    loop {
+        let len = *buf.get(pos)? as usize;
+        pos += 1;
+        if len == 0 {
+            break;
+        }
+
+        let label = buf.get(pos..pos + len)?;
+        labels.push(String::from_utf8_lossy(label).to_string());
+        pos += len;
+    }
+
+    Some((labels.join("."), pos))
 }
