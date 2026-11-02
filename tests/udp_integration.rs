@@ -4,6 +4,7 @@ use std::thread;
 use std::time::Duration;
 
 // Start a server on a random free port and return its address.
+// Port 0 means "OS, choose any free port for me"
 fn start_server() -> SocketAddr {
     let sock = UdpSocket::bind("127.0.0.1:0").unwrap();
     let addr = sock.local_addr().unwrap();
@@ -17,10 +18,12 @@ fn build_query(id: u16, flags: u16, name: &str) -> Vec<u8> {
     q.extend(id.to_be_bytes());
     q.extend(flags.to_be_bytes());
     q.extend([0, 1, 0, 0, 0, 0, 0, 0]); // QD=1, AN=NS=AR=0
+
     for label in name.split('.') {
         q.push(label.len() as u8);
         q.extend(label.as_bytes());
     }
+
     q.push(0);
     q.extend([0, 1, 0, 1]); // type A, class IN
     q
@@ -39,7 +42,7 @@ fn exchange(server: SocketAddr, packet: &[u8]) -> Vec<u8> {
 #[test]
 fn standard_query_gets_full_answer() {
     let server = start_server();
-    let query = build_query(1234, 0x0100, "codecrafters.io"); // RD=1
+    let query = build_query(1234, 0x0100, "codecrafters.io");
     let resp = exchange(server, &query);
 
     assert_eq!(&resp[0..2], &[0x04, 0xD2]);   // same ID
@@ -92,3 +95,15 @@ fn malformed_packet_does_not_kill_server() {
     let resp = exchange(server, &build_query(9, 0x0100, "ok.io"));
     assert_eq!(&resp[0..2], &[0, 9]);
 }
+
+
+
+
+
+
+
+
+
+
+
+
